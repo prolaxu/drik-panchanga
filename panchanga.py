@@ -1,30 +1,3 @@
-#! /usr/bin/env python
-
-# panchanga.py -- routines for computing tithi, vara, etc.
-#
-# Copyright (C) 2013 Satish BD  <bdsatish@gmail.com>
-# Downloaded from https://github.com/bdsatish/drik-panchanga
-#
-# This file is part of the "drik-panchanga" Python library
-# for computing Hindu luni-solar calendar based on the Swiss ephemeris
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-"""
-Use Swiss ephemeris to calculate tithi, nakshatra, etc.
-"""
-
 from __future__ import division
 from math import floor, ceil
 from collections import namedtuple as struct
@@ -77,23 +50,23 @@ jd_to_gregorian = lambda jd: swe.revjul(jd, swe.GREG_CAL)   # returns (y, m, d, 
 
 def solar_longitude(jd):
   """Solar longitude at given instant (julian day) jd"""
-  data = swe.calc_ut(jd, swe.SUN, flag = swe.FLG_SWIEPH)
+  data = swe.calc_ut(jd, swe.SUN, flags = swe.FLG_SWIEPH)
   return data[0]   # in degrees
 
 def lunar_longitude(jd):
   """Lunar longitude at given instant (julian day) jd"""
-  data = swe.calc_ut(jd, swe.MOON, flag = swe.FLG_SWIEPH)
+  data = swe.calc_ut(jd, swe.MOON, flags = swe.FLG_SWIEPH)
   return data[0]   # in degrees
 
 def lunar_latitude(jd):
   """Lunar latitude at given instant (julian day) jd"""
-  data = swe.calc_ut(jd, swe.MOON, flag = swe.FLG_SWIEPH)
+  data = swe.calc_ut(jd, swe.MOON, flags = swe.FLG_SWIEPH)
   return data[1]   # in degrees
 
 def sunrise(jd, place):
   """Sunrise when centre of disc is at horizon for given date and place"""
   lat, lon, tz = place
-  result = swe.rise_trans(jd - tz/24, swe.SUN, lon, lat, rsmi=swe.BIT_DISC_CENTER + swe.CALC_RISE)
+  result = swe.rise_trans(jd - tz/24, swe.SUN, geopos=[lon, lat,0], rsmi=swe.BIT_DISC_CENTER + swe.CALC_RISE)
   rise = result[1][0]  # julian-day number
   # Convert to local time
   return [rise + tz/24., to_dms((rise - jd) * 24 + tz)]
@@ -101,7 +74,7 @@ def sunrise(jd, place):
 def sunset(jd, place):
   """Sunset when centre of disc is at horizon for given date and place"""
   lat, lon, tz = place
-  result = swe.rise_trans(jd - tz/24, swe.SUN, lon, lat, rsmi=swe.BIT_DISC_CENTER + swe.CALC_SET)
+  result = swe.rise_trans(jd - tz/24, swe.SUN,  geopos=[lon, lat,0], rsmi=swe.BIT_DISC_CENTER + swe.CALC_SET)
   setting = result[1][0]  # julian-day number
   # Convert to local time
   return [setting + tz/24., to_dms((setting - jd) * 24 + tz)]
@@ -109,7 +82,7 @@ def sunset(jd, place):
 def moonrise(jd, place):
   """Moonrise when centre of disc is at horizon for given date and place"""
   lat, lon, tz = place
-  result = swe.rise_trans(jd - tz/24, swe.MOON, lon, lat, rsmi=swe.BIT_DISC_CENTER + swe.CALC_RISE)
+  result = swe.rise_trans(jd - tz/24, swe.MOON,  geopos=[lon, lat,0], rsmi=swe.BIT_DISC_CENTER + swe.CALC_RISE)
   rise = result[1][0]  # julian-day number
   # Convert to local time
   return to_dms((rise - jd) * 24 + tz)
@@ -117,7 +90,7 @@ def moonrise(jd, place):
 def moonset(jd, place):
   """Moonset when centre of disc is at horizon for given date and place"""
   lat, lon, tz = place
-  result = swe.rise_trans(jd - tz/24, swe.MOON, lon, lat, rsmi=swe.BIT_DISC_CENTER + swe.CALC_SET)
+  result = swe.rise_trans(jd - tz/24, swe.MOON, geopos=[lon, lat,0], rsmi=swe.BIT_DISC_CENTER + swe.CALC_SET)
   setting = result[1][0]  # julian-day number
   # Convert to local time
   return to_dms((setting - jd) * 24 + tz)
@@ -136,8 +109,8 @@ def tithi(jd, place):
 
   # 3. Compute longitudinal differences at intervals of 0.25 days from sunrise
   offsets = [0.25, 0.5, 0.75, 1.0]
-  lunar_long_diff = [ (lunar_longitude(rise + t) - lunar_longitude(rise)) % 360 for t in offsets ]
-  solar_long_diff = [ (solar_longitude(rise + t) - solar_longitude(rise)) % 360 for t in offsets ]
+  lunar_long_diff = [ (lunar_longitude(rise + t)[0] - lunar_longitude(rise)[0]) % 360 for t in offsets ]
+  solar_long_diff = [ (solar_longitude(rise + t)[0] - solar_longitude(rise)[0]) % 360 for t in offsets ]
   relative_motion = [ moon - sun for (moon, sun) in zip(lunar_long_diff, solar_long_diff) ]
 
   # 4. Find end time by 4-point inverse Lagrange interpolation
@@ -174,7 +147,7 @@ def nakshatra(jd, place):
 
   # Swiss Ephemeris always gives Sayana. So subtract ayanamsa to get Nirayana
   offsets = [0.0, 0.25, 0.5, 0.75, 1.0]
-  longitudes = [ (lunar_longitude(rise + t) - swe.get_ayanamsa_ut(rise)) % 360 for t in offsets]
+  longitudes = [ (lunar_longitude(rise + t)[0] - swe.get_ayanamsa_ut(rise)) % 360 for t in offsets]
 
   # 2. Today's nakshatra is when offset = 0
   # There are 27 Nakshatras spanning 360 degrees
@@ -209,8 +182,8 @@ def yoga(jd, place):
   rise = sunrise(jd, place)[0] - tz / 24.  # Sunrise at UT 00:00
 
   # 2. Find the Nirayana longitudes and add them
-  lunar_long = (lunar_longitude(rise) - swe.get_ayanamsa_ut(rise)) % 360
-  solar_long = (solar_longitude(rise) - swe.get_ayanamsa_ut(rise)) % 360
+  lunar_long = (lunar_longitude(rise)[0] - swe.get_ayanamsa_ut(rise)) % 360
+  solar_long = (solar_longitude(rise)[0] - swe.get_ayanamsa_ut(rise)) % 360
   total = (lunar_long + solar_long) % 360
   # There are 27 Yogas spanning 360 degrees
   yog = ceil(total * 27 / 360)
@@ -220,8 +193,8 @@ def yoga(jd, place):
 
   # 3. Compute longitudinal sums at intervals of 0.25 days from sunrise
   offsets = [0.25, 0.5, 0.75, 1.0]
-  lunar_long_diff = [ (lunar_longitude(rise + t) - lunar_longitude(rise)) % 360 for t in offsets ]
-  solar_long_diff = [ (solar_longitude(rise + t) - solar_longitude(rise)) % 360 for t in offsets ]
+  lunar_long_diff = [ (lunar_longitude(rise + t)[0] - lunar_longitude(rise)[0]) % 360 for t in offsets ]
+  solar_long_diff = [ (solar_longitude(rise + t)[0] - solar_longitude(rise)[0]) % 360 for t in offsets ]
   total_motion = [ moon + sun for (moon, sun) in zip(lunar_long_diff, solar_long_diff) ]
 
   # 4. Find end time by 4-point inverse Lagrange interpolation
@@ -233,8 +206,8 @@ def yoga(jd, place):
   answer = [int(yog), to_dms(ends)]
 
   # 5. Check for skipped yoga
-  lunar_long_tmrw = (lunar_longitude(rise + 1) - swe.get_ayanamsa_ut(rise + 1)) % 360
-  solar_long_tmrw = (solar_longitude(rise + 1) - swe.get_ayanamsa_ut(rise + 1)) % 360
+  lunar_long_tmrw = (lunar_longitude(rise + 1)[0] - swe.get_ayanamsa_ut(rise + 1)) % 360
+  solar_long_tmrw = (solar_longitude(rise + 1)[0] - swe.get_ayanamsa_ut(rise + 1)) % 360
   total_tmrw = (lunar_long_tmrw + solar_long_tmrw) % 360
   tomorrow = ceil(total_tmrw * 27 / 360)
   isSkipped = (tomorrow - yog) % 27 > 1
@@ -255,8 +228,8 @@ def karana(jd, place):
   rise = sunrise(jd, place)[0]
 
   # 2. Find karana at this JDN
-  solar_long = solar_longitude(rise)
-  lunar_long = lunar_longitude(rise)
+  solar_long = solar_longitude(rise)[0]
+  lunar_long = lunar_longitude(rise)[0]
   moon_phase = (lunar_long - solar_long) % 360
   today = ceil(moon_phase / 6)
   degrees_left = today * 6 - moon_phase
@@ -313,13 +286,13 @@ def raasi(jd):
   """Zodiac of given jd. 1 = Mesha, ... 12 = Meena"""
   swe.set_sid_mode(swe.SIDM_LAHIRI)
   s = solar_longitude(jd)
-  solar_nirayana = (solar_longitude(jd) - swe.get_ayanamsa_ut(jd)) % 360
+  solar_nirayana = (solar_longitude(jd)[0] - swe.get_ayanamsa_ut(jd)) % 360
   # 12 rasis occupy 360 degrees, so each one is 30 degrees
   return ceil(solar_nirayana / 30.)
 
 def lunar_phase(jd):
-  solar_long = solar_longitude(jd)
-  lunar_long = lunar_longitude(jd)
+  solar_long = solar_longitude(jd)[0]
+  lunar_long = lunar_longitude(jd)[0]
   moon_phase = (lunar_long - solar_long) % 360
   return moon_phase
 
@@ -406,9 +379,9 @@ if __name__ == "__main__":
   date4 = gregorian_to_jd(Date(2009, 6, 21))
   apr_8 = gregorian_to_jd(Date(2010, 4, 8))
   apr_10 = gregorian_to_jd(Date(2010, 4, 10))
-  # all_tests()
-  # tithi_tests()
-  # nakshatra_tests()
-  # yoga_tests()
+  all_tests()
+  tithi_tests()
+  nakshatra_tests()
+  yoga_tests()
   masa_tests()
-  # new_moon(jd)
+  # new_moon()
